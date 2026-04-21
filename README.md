@@ -139,6 +139,11 @@ Authorization: Bearer <token>
 | `/api/devices` | GET | Yes | List all devices |
 | `/api/devices/type/<type>` | GET | Yes | List by type (e.g. `switch`, `lightbulb`) |
 | `/api/devices/<id>` | GET | Yes | Device state |
+| `/api/rooms` | GET | Yes | List learned rooms |
+| `/api/rooms/<room>/devices` | GET | Yes | List devices in a learned room |
+| `/api/devices/<id>/room` | POST | Yes | Assign or update a device room |
+| `/api/devices/<id>/room` | DELETE | Yes | Remove a learned device room |
+| `/api/rooms/learn` | POST | Yes | Learn multiple room assignments |
 | `/api/devices/<id>/control` | POST | Yes | Control one device |
 | `/api/devices/control` | POST | Yes | Control multiple devices |
 
@@ -146,6 +151,71 @@ Authorization: Bearer <token>
 
 ```
 GET /health
+```
+
+**Room learning**
+
+Room assignments are learned metadata stored in Homebridge storage at:
+
+```
+/var/lib/homebridge/.openclaw-rooms.json
+```
+
+Device responses include a `room` field once learned:
+
+```json
+{
+  "id": "xxx",
+  "name": "Desk Lamp",
+  "type": "lightbulb",
+  "room": "Office"
+}
+```
+
+Assign one device to a room:
+
+```
+POST /api/devices/<id>/room
+Content-Type: application/json
+
+{ "room": "Office" }
+```
+
+Learn several rooms at once:
+
+```
+POST /api/rooms/learn
+Content-Type: application/json
+
+{
+  "devices": [
+    { "id": "xxx", "room": "Office" },
+    { "id": "yyy", "room": "Kitchen" }
+  ]
+}
+```
+
+Or group device IDs by room:
+
+```json
+{
+  "rooms": {
+    "Office": ["xxx", "zzz"],
+    "Kitchen": ["yyy"]
+  }
+}
+```
+
+List learned rooms:
+
+```
+GET /api/rooms
+```
+
+List devices in a room:
+
+```
+GET /api/rooms/Office/devices
 ```
 
 **Control one device**
@@ -333,6 +403,11 @@ Authorization: Bearer <token>
 | `/api/devices` | GET | Sí | Listar todos los dispositivos |
 | `/api/devices/type/<tipo>` | GET | Sí | Listar por tipo (ej. `switch`, `lightbulb`) |
 | `/api/devices/<id>` | GET | Sí | Estado de un dispositivo |
+| `/api/rooms` | GET | Sí | Listar habitaciones aprendidas |
+| `/api/rooms/<habitacion>/devices` | GET | Sí | Listar dispositivos en una habitación aprendida |
+| `/api/devices/<id>/room` | POST | Sí | Asignar o actualizar la habitación de un dispositivo |
+| `/api/devices/<id>/room` | DELETE | Sí | Eliminar la habitación aprendida de un dispositivo |
+| `/api/rooms/learn` | POST | Sí | Aprender varias asignaciones de habitaciones |
 | `/api/devices/<id>/control` | POST | Sí | Controlar un dispositivo |
 | `/api/devices/control` | POST | Sí | Controlar varios dispositivos |
 
@@ -340,6 +415,59 @@ Authorization: Bearer <token>
 
 ```
 GET /health
+```
+
+**Aprendizaje de habitaciones**
+
+Las habitaciones se guardan como metadatos aprendidos en el almacenamiento de Homebridge:
+
+```
+/var/lib/homebridge/.openclaw-rooms.json
+```
+
+Las respuestas de dispositivos incluyen el campo `room` cuando ya se aprendió:
+
+```json
+{
+  "id": "xxx",
+  "name": "Desk Lamp",
+  "type": "lightbulb",
+  "room": "Office"
+}
+```
+
+Asignar un dispositivo a una habitación:
+
+```
+POST /api/devices/<id>/room
+Content-Type: application/json
+
+{ "room": "Office" }
+```
+
+Aprender varias habitaciones a la vez:
+
+```
+POST /api/rooms/learn
+Content-Type: application/json
+
+{
+  "devices": [
+    { "id": "xxx", "room": "Office" },
+    { "id": "yyy", "room": "Kitchen" }
+  ]
+}
+```
+
+O agrupar IDs de dispositivos por habitación:
+
+```json
+{
+  "rooms": {
+    "Office": ["xxx", "zzz"],
+    "Kitchen": ["yyy"]
+  }
+}
 ```
 
 **Controlar un dispositivo**
