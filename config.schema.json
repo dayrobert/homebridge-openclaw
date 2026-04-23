@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "OpenClawAPI",
+  "pluginAlias": "OpenClawGateway",
   "pluginType": "platform",
   "headerDisplay": "This plugin exposes a REST API so that [OpenClaw](https://docs.openclaw.ai) agents can list and control your HomeKit devices via Homebridge.",
   "footerDisplay": "For full documentation see the [README](https://github.com/dayrobert/homebridge-openclaw-gateway#readme).",
@@ -9,13 +9,13 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "default": "OpenClaw API",
+        "default": "OpenClaw Gateway",
         "description": "Display name for this platform in Homebridge."
       },
       "apiPort": {
         "title": "API Port",
         "type": "integer",
-        "default": 8899,
+        "default": 8865,
         "minimum": 1024,
         "maximum": 65535,
         "description": "Port for the REST API server (1024-65535)."
@@ -78,7 +78,7 @@
       "pluginExternalUrl": {
         "title": "Plugin External URL",
         "type": "string",
-        "placeholder": "http://homebridge.local:8899",
+        "placeholder": "http://homebridge.local:8865",
         "description": "The URL OpenClaw uses to reach this plugin. Used in the /api/setup bundle. Defaults to http://localhost:<apiPort>."
       }
     },

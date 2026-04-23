@@ -23,26 +23,26 @@ Add to your Homebridge `config.json` under **`platforms`**:
 
 ```json
 {
-  "platform": "OpenClawAPI",
-  "name": "OpenClaw API"
+  "platform": "OpenClawGateway",
+  "name": "OpenClaw Gateway"
 }
 ```
 
-The plugin will automatically detect UI credentials, generate a unique API token, and listen on port 8899.
+The plugin will automatically detect UI credentials, generate a unique API token, and listen on port 8865.
 
 ### Advanced configuration
 
 ```json
 {
-  "platform": "OpenClawAPI",
-  "name": "OpenClaw API",
-  "apiPort": 8899,
+  "platform": "OpenClawGateway",
+  "name": "OpenClaw Gateway",
+  "apiPort": 8865,
   "apiBind": "0.0.0.0",
   "token": "my-custom-token",
   "rateLimit": 100,
   "pollInterval": 30,
   "eventQueueSize": 200,
-  "pluginExternalUrl": "http://homebridge.local:8899",
+  "pluginExternalUrl": "http://homebridge.local:8865",
   "homebridgeUiUrl": "http://localhost:8581",
   "homebridgeUiUser": "admin",
   "homebridgeUiPass": "admin"
@@ -51,7 +51,7 @@ The plugin will automatically detect UI credentials, generate a unique API token
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `apiPort` | number | `8899` | REST server port |
+| `apiPort` | number | `8865` | REST server port |
 | `apiBind` | string | `0.0.0.0` | Bind address (`127.0.0.1` = local only) |
 | `token` | string | auto | Bearer token for OpenClaw API calls |
 | `rateLimit` | number | `100` | Max requests per minute per IP |
@@ -116,7 +116,7 @@ Configure the same value in OpenClaw.
 
 ### REST API
 
-Base URL: `http://<homebridge-ip>:8899`
+Base URL: `http://<homebridge-ip>:8865`
 
 All requests (except `/health`) require:
 
@@ -284,7 +284,7 @@ Every 1 minute (cron):
 Send this single message to your OpenClaw agent to configure the full event integration:
 
 ```
-Run /setup-homekit http://<homebridge-ip>:8899 <token>
+Run /setup-homekit http://<homebridge-ip>:8865 <token>
 ```
 
 The agent calls `/api/setup`, writes the skill and trigger files, registers the cron, and updates `CLAUDE.md` — no manual configuration required.
@@ -316,18 +316,18 @@ Example with `curl`:
 
 ```bash
 # List devices
-curl -s -H "Authorization: Bearer TOKEN" http://HOMEBRIDGE_IP:8899/api/devices
+curl -s -H "Authorization: Bearer TOKEN" http://HOMEBRIDGE_IP:8865/api/devices
 
 # Turn on a light
 curl -s -X POST \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"action":"on","value":true}' \
-  http://HOMEBRIDGE_IP:8899/api/devices/DEVICE_ID/control
+  http://HOMEBRIDGE_IP:8865/api/devices/DEVICE_ID/control
 
 # Check for events since a cursor
 curl -s -H "Authorization: Bearer TOKEN" \
-  "http://HOMEBRIDGE_IP:8899/api/events/summary?since=1745291000000"
+  "http://HOMEBRIDGE_IP:8865/api/events/summary?since=1745291000000"
 ```
 
 ### Acknowledgements

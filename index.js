@@ -42,7 +42,7 @@ class OpenClawPlatform {
     this.log = log;
     this.config = config;
     this.api = api;
-    this.name = config.name || 'OpenClaw API';
+    this.name = config.name || 'OpenClaw Gateway';
 
     const storagePath = detectStoragePath();
     this.storagePath = storagePath;

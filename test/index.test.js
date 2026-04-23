@@ -279,7 +279,7 @@ test('parseAccessories maps services into device objects with learned rooms', ()
     },
     {
       uniqueId: 'api-1',
-      serviceName: 'OpenClaw API',
+      serviceName: 'OpenClaw Gateway',
       humanType: 'Switch',
     },
   ], roomStore);
