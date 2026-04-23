@@ -1,5 +1,5 @@
 /**
- * homebridge-openclaw-gateway v3.0.0
+ * homebridge-openclaw-gateway v3.1.2
  *
  * Exposes a simplified REST API so that an OpenClaw agent can list and
  * control HomeKit devices managed by Homebridge. Also runs an internal
