@@ -43,10 +43,12 @@ function loadPluginForTest() {
 const {
   RoomStore,
   normalizeRoomName,
+  normalizeRoomKey,
   parseAccessories,
   mapType,
   resolveAction,
   clamp,
+  setupRoutes,
   ROOMS_FILE_NAME,
 } = loadPluginForTest();
 
@@ -64,9 +66,59 @@ function makeLog() {
   };
 }
 
+function makeRouteHarness() {
+  const routes = [];
+  const app = {
+    get(path, ...handlers) {
+      routes.push({ method: 'GET', path, handlers });
+    },
+    post(path, ...handlers) {
+      routes.push({ method: 'POST', path, handlers });
+    },
+    delete(path, ...handlers) {
+      routes.push({ method: 'DELETE', path, handlers });
+    },
+  };
+
+  function findRoute(method, path) {
+    return routes.find(route => route.method === method && route.path === path);
+  }
+
+  async function invoke(method, path, req) {
+    const route = findRoute(method, path);
+    assert.ok(route, `Expected ${method} ${path} to be registered.`);
+
+    const res = {
+      statusCode: 200,
+      body: null,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        this.body = payload;
+        return this;
+      },
+    };
+
+    let index = 0;
+    const next = async () => {
+      const handler = route.handlers[index++];
+      if (!handler) return;
+      await handler(req, res, next);
+    };
+
+    await next();
+    return res;
+  }
+
+  return { app, invoke };
+}
+
 test('normalizes room names by trimming and collapsing whitespace', () => {
   assert.equal(normalizeRoomName('  Living   Room  '), 'Living Room');
   assert.equal(normalizeRoomName(null), '');
+  assert.equal(normalizeRoomKey('  Living   Room  '), 'living room');
 });
 
 test('RoomStore persists device room assignments', t => {
@@ -75,11 +127,13 @@ test('RoomStore persists device room assignments', t => {
 
   const entry = firstStore.setRoom('device-1', '  Office  ');
   assert.equal(entry.room, 'Office');
+  assert.equal(entry.roomKey, 'office');
   assert.match(entry.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
 
   const roomFile = join(dir, ROOMS_FILE_NAME);
   assert.equal(existsSync(roomFile), true);
   assert.deepEqual(JSON.parse(readFileSync(roomFile, 'utf8')).devices['device-1'].room, 'Office');
+  assert.deepEqual(JSON.parse(readFileSync(roomFile, 'utf8')).devices['device-1'].roomKey, 'office');
 
   const secondStore = new RoomStore(dir, makeLog());
   assert.equal(secondStore.getRoom('device-1'), 'Office');
@@ -105,6 +159,71 @@ test('RoomStore clears rooms and lists rooms with stale devices', t => {
       name: 'Office',
       count: 1,
       devices: [{ id: 'missing-1', stale: true }],
+    },
+  ]);
+});
+
+test('RoomStore groups room names case-insensitively', t => {
+  const dir = makeTempDir(t);
+  const store = new RoomStore(dir, makeLog());
+
+  store.setRoom('light-1', 'Office');
+  store.setRoom('light-2', 'office');
+
+  assert.deepEqual(
+    store.listRooms([
+      { id: 'light-1', name: 'Lamp 1', type: 'lightbulb' },
+      { id: 'light-2', name: 'Lamp 2', type: 'lightbulb' },
+    ]),
+    [
+      {
+        name: 'Office',
+        count: 2,
+        devices: [
+          { id: 'light-1', name: 'Lamp 1', type: 'lightbulb' },
+          { id: 'light-2', name: 'Lamp 2', type: 'lightbulb' },
+        ],
+      },
+    ],
+  );
+});
+
+test('RoomStore backfills old room memory files and groups by room key', t => {
+  const dir = makeTempDir(t);
+  writeFileSync(join(dir, ROOMS_FILE_NAME), JSON.stringify({
+    version: 1,
+    devices: {
+      'light-1': { room: 'Office', updatedAt: '2026-01-01T00:00:00.000Z' },
+      'fan-1': { room: ' office ', updatedAt: '2026-01-02T00:00:00.000Z' },
+      'bad-1': { room: '   ', updatedAt: '2026-01-03T00:00:00.000Z' },
+    },
+  }));
+
+  const store = new RoomStore(dir, makeLog());
+
+  assert.deepEqual(store.data.devices, {
+    'light-1': {
+      room: 'Office',
+      roomKey: 'office',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    'fan-1': {
+      room: 'office',
+      roomKey: 'office',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    },
+  });
+  assert.deepEqual(store.listRooms([
+    { id: 'light-1', name: 'Desk Lamp', type: 'lightbulb' },
+    { id: 'fan-1', name: 'Office Fan', type: 'fan' },
+  ]), [
+    {
+      name: 'Office',
+      count: 2,
+      devices: [
+        { id: 'light-1', name: 'Desk Lamp', type: 'lightbulb' },
+        { id: 'fan-1', name: 'Office Fan', type: 'fan' },
+      ],
     },
   ]);
 });
@@ -200,4 +319,123 @@ test('resolveAction returns characteristic writes and clamps numeric values', ()
   assert.equal(resolveAction('nope', true), null);
   assert.equal(clamp(5, 0, 10), 5);
   assert.equal(clamp(-5, 0, 10), 0);
+});
+
+test('POST /api/devices/:id/room returns 502 for upstream lookup failures', async () => {
+  const { app, invoke } = makeRouteHarness();
+  setupRoutes(app, 'test-token', {
+    async getAccessories() {
+      throw new Error('Config UI unavailable');
+    },
+  }, {
+    getRoom() {
+      return null;
+    },
+    setRoom() {
+      throw new Error('Should not write when upstream failed.');
+    },
+  });
+
+  const res = await invoke('POST', '/api/devices/:id/room', {
+    headers: { authorization: 'Bearer test-token' },
+    params: { id: 'light-1' },
+    body: { room: 'Office' },
+  });
+
+  assert.equal(res.statusCode, 502);
+  assert.deepEqual(res.body, { error: 'Upstream error', message: 'Config UI unavailable' });
+});
+
+test('POST /api/devices/:id/room returns 500 for local room write failures', async () => {
+  const { app, invoke } = makeRouteHarness();
+  setupRoutes(app, 'test-token', {
+    async getAccessories() {
+      return [{ uniqueId: 'light-1', serviceName: 'Desk Lamp', humanType: 'Lightbulb' }];
+    },
+  }, {
+    getRoom() {
+      return null;
+    },
+    setRoom() {
+      throw new Error('Disk full');
+    },
+  });
+
+  const res = await invoke('POST', '/api/devices/:id/room', {
+    headers: { authorization: 'Bearer test-token' },
+    params: { id: 'light-1' },
+    body: { room: 'Office' },
+  });
+
+  assert.equal(res.statusCode, 500);
+  assert.deepEqual(res.body, { error: 'Room memory error', message: 'Disk full' });
+});
+
+test('POST /api/rooms/learn returns 502 for upstream lookup failures', async () => {
+  const upstreamHarness = makeRouteHarness();
+  setupRoutes(upstreamHarness.app, 'test-token', {
+    async getAccessories() {
+      throw new Error('Config UI unavailable');
+    },
+  }, {
+    getRoom() {
+      return null;
+    },
+    applyAssignments() {
+      throw new Error('Should not write when upstream failed.');
+    },
+  });
+
+  const upstreamRes = await upstreamHarness.invoke('POST', '/api/rooms/learn', {
+    headers: { authorization: 'Bearer test-token' },
+    body: { devices: [{ id: 'light-1', room: 'Office' }] },
+  });
+
+  assert.equal(upstreamRes.statusCode, 502);
+  assert.deepEqual(upstreamRes.body, { error: 'Upstream error', message: 'Config UI unavailable' });
+});
+
+test('POST /api/rooms/learn preserves per-item validation and write errors', async () => {
+  const { app, invoke } = makeRouteHarness();
+  setupRoutes(app, 'test-token', {
+    async getAccessories() {
+      return [
+        { uniqueId: 'light-1', serviceName: 'Desk Lamp', humanType: 'Lightbulb' },
+        { uniqueId: 'switch-1', serviceName: 'Outlet', humanType: 'Switch' },
+      ];
+    },
+  }, {
+    getRoom() {
+      return null;
+    },
+    setRoom(id, room) {
+      if (id === 'switch-1') throw new Error('Disk full');
+      return { room };
+    },
+  });
+
+  const res = await invoke('POST', '/api/rooms/learn', {
+    headers: { authorization: 'Bearer test-token' },
+    body: {
+      devices: [
+        { id: 'light-1', room: '  Office  ' },
+        { id: '', room: 'Kitchen' },
+        { id: 'missing-room', room: '' },
+        { id: 'missing-device', room: 'Office' },
+        { id: 'switch-1', room: 'Kitchen' },
+      ],
+    },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, {
+    success: true,
+    results: [
+      { id: 'light-1', success: true, room: 'Office' },
+      { id: '', success: false, error: 'Missing device id.' },
+      { id: 'missing-room', success: false, error: 'Missing room.' },
+      { id: 'missing-device', success: false, error: "Device 'missing-device' not found." },
+      { id: 'switch-1', success: false, error: 'Disk full' },
+    ],
+  });
 });

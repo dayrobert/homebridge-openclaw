@@ -108,6 +108,10 @@ function normalizeRoomName(room) {
   return String(room || '').trim().replace(/\s+/g, ' ');
 }
 
+function normalizeRoomKey(room) {
+  return normalizeRoomName(room).toLowerCase();
+}
+
 class RoomStore {
   constructor(storagePath, log) {
     this.filePath = resolve(storagePath, ROOMS_FILE_NAME);
@@ -120,7 +124,19 @@ class RoomStore {
     if (!existsSync(this.filePath)) return;
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, 'utf8'));
-      const devices = parsed?.devices && typeof parsed.devices === 'object' ? parsed.devices : {};
+      const rawDevices = parsed?.devices && typeof parsed.devices === 'object' ? parsed.devices : {};
+      const devices = {};
+
+      for (const [id, entry] of Object.entries(rawDevices)) {
+        const room = normalizeRoomName(entry?.room);
+        if (!room) continue;
+        devices[id] = {
+          room,
+          roomKey: normalizeRoomKey(room),
+          updatedAt: entry?.updatedAt || null,
+        };
+      }
+
       this.data = { version: 1, devices };
     } catch (err) {
       this.log.warn(`[${PLUGIN_NAME}] Could not read room memory: ${err.message}`);
@@ -137,10 +153,12 @@ class RoomStore {
 
   setRoom(deviceId, room) {
     const cleanRoom = normalizeRoomName(room);
+    const roomKey = normalizeRoomKey(room);
     if (!deviceId) throw new Error('Missing device id.');
     if (!cleanRoom) throw new Error('Missing room.');
     this.data.devices[deviceId] = {
       room: cleanRoom,
+      roomKey,
       updatedAt: new Date().toISOString(),
     };
     this._save();
@@ -172,18 +190,23 @@ class RoomStore {
 
     for (const [id, entry] of Object.entries(this.data.devices)) {
       const room = entry?.room;
-      if (!room) continue;
-      if (!rooms.has(room)) rooms.set(room, []);
+      const roomKey = entry?.roomKey || normalizeRoomKey(room);
+      if (!roomKey) continue;
+      if (!rooms.has(roomKey)) {
+        rooms.set(roomKey, { name: room, devices: [] });
+      }
+
+      const bucket = rooms.get(roomKey);
       const device = byId.get(id);
-      rooms.get(room).push(device ? { id, name: device.name, type: device.type } : { id, stale: true });
+      bucket.devices.push(device ? { id, name: device.name, type: device.type } : { id, stale: true });
     }
 
-    return Array.from(rooms.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, roomDevices]) => ({
-        name,
-        count: roomDevices.length,
-        devices: roomDevices.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id)),
+    return Array.from(rooms.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(room => ({
+        name: room.name,
+        count: room.devices.length,
+        devices: room.devices.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id)),
       }));
   }
 }
@@ -486,8 +509,9 @@ function setupRoutes(app, apiToken, uiClient, roomStore) {
   app.get('/api/rooms/:room/devices', auth, async (req, res) => {
     try {
       const room = normalizeRoomName(req.params.room);
+      const roomKey = normalizeRoomKey(room);
       const raw = await uiClient.getAccessories();
-      const devices = parseAccessories(raw, roomStore).filter(d => d.room?.toLowerCase() === room.toLowerCase());
+      const devices = parseAccessories(raw, roomStore).filter(d => normalizeRoomKey(d.room) === roomKey);
       res.json({ success: true, room, count: devices.length, devices });
     } catch (err) {
       res.status(502).json({ error: 'Upstream error', message: err.message });
@@ -498,10 +522,19 @@ function setupRoutes(app, apiToken, uiClient, roomStore) {
   app.post('/api/devices/:id/room', auth, async (req, res) => {
     const room = normalizeRoomName(req.body?.room);
     if (!room) return res.status(400).json({ error: 'Bad Request', message: 'Missing "room".' });
+
+    let devices;
     try {
       const raw = await uiClient.getAccessories();
-      const device = parseAccessories(raw, roomStore).find(d => d.id === req.params.id);
-      if (!device) return res.status(404).json({ error: 'Not Found', message: `Device '${req.params.id}' not found.` });
+      devices = parseAccessories(raw, roomStore);
+    } catch (err) {
+      return res.status(502).json({ error: 'Upstream error', message: err.message });
+    }
+
+    const device = devices.find(d => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: 'Not Found', message: `Device '${req.params.id}' not found.` });
+
+    try {
       const entry = roomStore.setRoom(req.params.id, room);
       res.json({ success: true, id: req.params.id, room: entry.room });
     } catch (err) {
@@ -542,24 +575,44 @@ function setupRoutes(app, apiToken, uiClient, roomStore) {
       });
     }
 
+    let validIds;
     try {
       const raw = await uiClient.getAccessories();
-      const validIds = new Set(parseAccessories(raw, roomStore).map(d => d.id));
-      const validated = assignments.map(item => validIds.has(item.id)
-        ? item
-        : { ...item, room: '', invalid: true });
-      const results = roomStore.applyAssignments(validated);
-      for (const result of results) {
-        if (validated.find(item => item.id === result.id)?.invalid) {
-          result.success = false;
-          result.error = `Device '${result.id}' not found.`;
-          delete result.room;
-        }
-      }
-      res.json({ success: true, results });
+      validIds = new Set(parseAccessories(raw, roomStore).map(d => d.id));
     } catch (err) {
-      res.status(500).json({ error: 'Room memory error', message: err.message });
+      return res.status(502).json({ error: 'Upstream error', message: err.message });
     }
+
+    const results = [];
+
+    for (const item of assignments) {
+      const id = item?.id;
+      const room = normalizeRoomName(item?.room);
+
+      if (!id) {
+        results.push({ id, success: false, error: 'Missing device id.' });
+        continue;
+      }
+
+      if (!room) {
+        results.push({ id, success: false, error: 'Missing room.' });
+        continue;
+      }
+
+      if (!validIds.has(id)) {
+        results.push({ id, success: false, error: `Device '${id}' not found.` });
+        continue;
+      }
+
+      try {
+        const entry = roomStore.setRoom(id, room);
+        results.push({ id, success: true, room: entry.room });
+      } catch (err) {
+        results.push({ id, success: false, error: err.message });
+      }
+    }
+
+    res.json({ success: true, results });
   });
 
   // Control single device
@@ -674,9 +727,11 @@ class OpenClawPlatform {
 module.exports._test = {
   RoomStore,
   normalizeRoomName,
+  normalizeRoomKey,
   parseAccessories,
   mapType,
   resolveAction,
   clamp,
+  setupRoutes,
   ROOMS_FILE_NAME,
 };

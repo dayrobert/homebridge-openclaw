@@ -161,6 +161,8 @@ Room assignments are learned metadata stored in Homebridge storage at:
 /var/lib/homebridge/.openclaw-rooms.json
 ```
 
+Room matching is case-insensitive when filtering devices by room name.
+
 Device responses include a `room` field once learned:
 
 ```json
@@ -179,6 +181,12 @@ POST /api/devices/<id>/room
 Content-Type: application/json
 
 { "room": "Office" }
+```
+
+Remove a learned room from one device:
+
+```
+DELETE /api/devices/<id>/room
 ```
 
 Learn several rooms at once:
@@ -210,6 +218,32 @@ List learned rooms:
 
 ```
 GET /api/rooms
+```
+
+Sample response:
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "rooms": [
+    {
+      "name": "Kitchen",
+      "count": 1,
+      "devices": [
+        { "id": "yyy", "name": "Kitchen Light", "type": "lightbulb" }
+      ]
+    },
+    {
+      "name": "Office",
+      "count": 2,
+      "devices": [
+        { "id": "xxx", "name": "Desk Lamp", "type": "lightbulb" },
+        { "id": "zzz", "name": "Office Fan", "type": "fan" }
+      ]
+    }
+  ]
+}
 ```
 
 List devices in a room:
@@ -425,6 +459,8 @@ Las habitaciones se guardan como metadatos aprendidos en el almacenamiento de Ho
 /var/lib/homebridge/.openclaw-rooms.json
 ```
 
+La búsqueda de habitaciones no distingue entre mayúsculas y minúsculas al filtrar dispositivos por nombre de habitación.
+
 Las respuestas de dispositivos incluyen el campo `room` cuando ya se aprendió:
 
 ```json
@@ -443,6 +479,12 @@ POST /api/devices/<id>/room
 Content-Type: application/json
 
 { "room": "Office" }
+```
+
+Eliminar la habitación aprendida de un dispositivo:
+
+```
+DELETE /api/devices/<id>/room
 ```
 
 Aprender varias habitaciones a la vez:
@@ -468,6 +510,44 @@ O agrupar IDs de dispositivos por habitación:
     "Kitchen": ["yyy"]
   }
 }
+```
+
+Listar habitaciones aprendidas:
+
+```
+GET /api/rooms
+```
+
+Ejemplo de respuesta:
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "rooms": [
+    {
+      "name": "Kitchen",
+      "count": 1,
+      "devices": [
+        { "id": "yyy", "name": "Kitchen Light", "type": "lightbulb" }
+      ]
+    },
+    {
+      "name": "Office",
+      "count": 2,
+      "devices": [
+        { "id": "xxx", "name": "Desk Lamp", "type": "lightbulb" },
+        { "id": "zzz", "name": "Office Fan", "type": "fan" }
+      ]
+    }
+  ]
+}
+```
+
+Listar dispositivos en una habitación:
+
+```
+GET /api/rooms/Office/devices
 ```
 
 **Controlar un dispositivo**
