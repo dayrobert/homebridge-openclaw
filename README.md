@@ -1,7 +1,5 @@
 # homebridge-openclaw-gateway
 
-[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=for-the-badge&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
-
 Homebridge plugin that exposes a simplified REST API so an [OpenClaw](https://docs.openclaw.ai) agent can list and control HomeKit devices. Also includes a built-in event framework that detects HomeKit state changes and surfaces them to OpenClaw with minimal token cost.
 
 ### Requirements
