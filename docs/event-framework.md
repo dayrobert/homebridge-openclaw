@@ -132,7 +132,7 @@ A self-describing endpoint that returns everything an OpenClaw agent needs to co
 ```json
 {
   "version": "1.0",
-  "plugin": "homebridge-openclaw",
+  "plugin": "homebridge-openclaw-gateway",
   "skills": [
     {
       "name": "homekit-events",

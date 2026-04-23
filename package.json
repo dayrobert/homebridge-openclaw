@@ -1,6 +1,6 @@
 {
-  "name": "homebridge-openclaw",
-  "displayName": "OpenClaw API",
+  "name": "homebridge-openclaw-gateway",
+  "displayName": "OpenClaw Gateway",
   "version": "3.0.0",
   "description": "Expose a REST API so OpenClaw agents can list and control HomeKit devices via Homebridge.",
   "main": "index.js",
@@ -24,10 +24,14 @@
     "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.2"
   },
-  "author": "",
+  "author": "Robert Day <day.c.robert@gmail.com>",
+  "contributors": [
+    "Davide Vargas P. <davidevp@hotmail.com> (https://github.com/davidevp)"
+  ],
   "license": "MIT",
   "files": [
     "index.js",
+    "lib/",
     "config.schema.json",
     "homebridge-ui-logo.png",
     "LICENSE",
@@ -35,10 +39,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dayrobert/homebridge-openclaw.git"
+    "url": "git+https://github.com/dayrobert/homebridge-openclaw-gateway.git"
   },
-  "homepage": "https://github.com/dayrobert/homebridge-openclaw#readme",
+  "homepage": "https://github.com/dayrobert/homebridge-openclaw-gateway#readme",
   "bugs": {
-    "url": "https://github.com/dayrobert/homebridge-openclaw/issues"
+    "url": "https://github.com/dayrobert/homebridge-openclaw-gateway/issues"
   }
 }
