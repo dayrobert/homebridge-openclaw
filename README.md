@@ -316,9 +316,12 @@ Every 1 minute (cron):
     "bootstrap_endpoint": "http://.../api/auth/session",
     "session_ttl_seconds": 300
   },
-  "skills": [{ "name": "homekit-events", "path": "...", "content": "..." }],
+  "skills": [
+    { "name": "homekit-events", "path": "...", "content": "..." },
+    { "name": "setup-homekit", "path": "...", "content": "..." }
+  ],
   "triggers": [{ "path": "...", "content": "..." }],
-  "cron": { "schedule": "* * * * *", "command": "/homekit-events" },
+  "cron": { "name": "HomeKit events", "schedule": "* * * * *", "command": "/homekit-events", "sessionTarget": "isolated" },
   "claude_md_addition": "...",
   "env": { "OPENCLAW_HB_URL": "http://...", "OPENCLAW_HB_BOOTSTRAP_TOKEN": "..." }
 }
@@ -332,7 +335,7 @@ Send this single message to your OpenClaw agent to configure the full event inte
 Run /setup-homekit http://<homebridge-ip>:8865 <bootstrap-token>
 ```
 
-The agent calls `/api/setup`, writes the skill and trigger files under `.openclaw_gateway/`, registers the cron, and updates `CLAUDE.md` — no manual configuration required.
+The agent calls `/api/setup`, writes the skill and trigger files under `.openclaw_gateway/`, upserts the cron job (updating it if a job named `"HomeKit events"` already exists, creating it otherwise), and updates `CLAUDE.md` — no manual configuration required. Re-running the command is safe and will apply any configuration changes without creating duplicate jobs.
 
 **Event trigger files**
 

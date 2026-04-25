@@ -138,6 +138,11 @@ A self-describing endpoint that returns everything an OpenClaw agent needs to co
       "name": "homekit-events",
       "path": ".openclaw_gateway/commands/homekit-events.md",
       "content": "..."
+    },
+    {
+      "name": "setup-homekit",
+      "path": ".openclaw_gateway/commands/setup-homekit.md",
+      "content": "..."
     }
   ],
   "triggers": [
@@ -147,9 +152,11 @@ A self-describing endpoint that returns everything an OpenClaw agent needs to co
     }
   ],
   "cron": {
+    "name": "HomeKit events",
     "schedule": "* * * * *",
     "command": "/homekit-events",
-    "description": "Poll HomeKit for state changes every minute"
+    "description": "Poll HomeKit for state changes every minute",
+    "sessionTarget": "isolated"
   },
   "claude_md_addition": "...",
   "env": {
@@ -275,12 +282,12 @@ A cooldown file at `.openclaw_gateway/homekit-triggers/.cooldowns.json` tracks t
 
 ## Setup Flow
 
-The one-time setup uses the plugin's `/setup-homekit` bootstrap skill, which:
+The setup uses the plugin's `/setup-homekit` skill (itself shipped in the `/api/setup` bundle). Re-running it is safe — it upserts rather than creating duplicates. The skill:
 
 1. Calls `GET /api/setup` with the plugin URL and token
-2. Writes all skill files and trigger files to their correct paths
-3. Updates `CLAUDE.md` with the integration description block
-4. Registers the cron via `/schedule`
+2. Writes all skill files and trigger files to their correct paths (overwrites existing)
+3. Updates `CLAUDE.md` with the integration description block (skips if already present)
+4. Upserts the cron job: searches for an existing job named `"HomeKit events"`, updates it if found, creates it if not
 5. Writes env vars to settings
 
 The user sends one message to their OpenClaw session:
@@ -335,13 +342,15 @@ Plugin returns rendered bundle (skill content, trigger files, cron config, CLAUD
     ↓
 Skill writes:
     .openclaw_gateway/commands/homekit-events.md
+    .openclaw_gateway/commands/setup-homekit.md
     .openclaw_gateway/homekit-triggers/garage-door-open.md
-    .openclaw_gateway/homekit-triggers/.cooldowns.json  (empty)
-    CLAUDE.md  (appends integration block)
+    CLAUDE.md  (appends integration block, skips if already present)
     ↓
-Skill registers cron: /schedule every minute run /homekit-events
+Skill upserts cron job "HomeKit events":
+    existing job found → update sessionTarget + schedule
+    no existing job   → add new job
     ↓
-Setup complete. Integration is live within 30s of next garage state change.
+Setup complete. Re-running /setup-homekit is safe — no duplicate jobs created.
 ```
 
 ---
